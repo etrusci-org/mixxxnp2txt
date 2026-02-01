@@ -1,0 +1,6 @@
+[flake8]
+exclude = .pyvenv/, __pycache__/, 0000/
+
+extend-ignore = E303, E501
+; E303: Too many blank lines
+; E501: line too long
