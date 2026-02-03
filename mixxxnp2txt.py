@@ -157,10 +157,11 @@ class App:
             current = current.replace('{artist}', track[0])
             current = current.replace('{title}', track[1])
             current = current.replace('\\n', '\n')
-            self.current_out_file.write_text(current)
+            with open(file=self.current_out_file, mode='w', encoding='utf-8') as f:
+                f.write(current)
 
         if self.args.history:
-            with open(self.history_out_file, mode='a') as f:
+            with open(file=self.history_out_file, mode='a', encoding='utf-8') as f:
                 f.write(f"{str(datetime.datetime.now(tz=datetime.timezone.utc)).split('.')[0]}  {track[0]} - {track[1]}\n")
 
 
