@@ -1,6 +1,13 @@
 '''
 mixxxnp2txt
 ~~~~~~~~~~~
+
+If --api-url is set, the track data will be sent (POST) to an URL.
+The payload will have the following format:
+    action = submit_current_track
+    artist = current artist
+    title = current title
+    api_key = --api-key value if set or empty string
 '''
 
 import argparse
@@ -10,6 +17,8 @@ import os
 import sqlite3
 import sys
 import time
+
+import requests
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -21,7 +30,6 @@ DEFAULT_INTERVAL: int = 10
 class App:
     Argparser: argparse.ArgumentParser
     args: argparse.Namespace
-    mixxx_db_file_name: str = 'mixxxdb.sqlite'
     mixxx_db_file: pathlib.Path
     out_dir: pathlib.Path = pathlib.Path(__file__).parent.resolve()
     current_out_file: pathlib.Path = out_dir / 'mixxx.current.txt'
@@ -31,12 +39,16 @@ class App:
 
     def __init__(self) -> None:
         # Setup cli argument parser
-        self.Argparser: argparse.ArgumentParser = argparse.ArgumentParser(epilog=f"output directory: {self.out_dir}")
-        self.Argparser.add_argument('db_file', type=str, help=f"path to a {self.mixxx_db_file_name} file")
+        self.Argparser: argparse.ArgumentParser = argparse.ArgumentParser(
+            epilog=f"Output directory: {self.out_dir}"
+        )
+        self.Argparser.add_argument('db_file', type=str, help=f"path to a mixxxdb.sqlite file")
         self.Argparser.add_argument('--current', action='store_true', help="whether to log the current track")
-        self.Argparser.add_argument('--current-format', metavar='FMT', type=str, default=DEFAULT_CURRENT_FORMAT, help=f"format for the current track, default='{DEFAULT_CURRENT_FORMAT}'")
         self.Argparser.add_argument('--history', action='store_true', help="whether to log the track history")
         self.Argparser.add_argument('--interval', metavar='SECONDS', type=int, default=DEFAULT_INTERVAL, help=f"interval in seconds to check for track changes, default={DEFAULT_INTERVAL}")
+        self.Argparser.add_argument('--current-format', metavar='FORMAT', type=str, default=DEFAULT_CURRENT_FORMAT, help=f"format for the current track, default='{DEFAULT_CURRENT_FORMAT}'")
+        self.Argparser.add_argument('--api-url', metavar='URL', type=str, default=None, help=f"api url to send the current track to, default=None")
+        self.Argparser.add_argument('--api-key', metavar='KEY', type=str, default=None, help=f"api key, default=None")
 
         # Parse given cli arguments
         self.args: argparse.Namespace = self.Argparser.parse_args()
@@ -63,12 +75,12 @@ class App:
 
 
     def main(self) -> None:
-        print('args          ', self.args)
+        # print('args          ', self.args)
         print('mixxx_db_file ', self.mixxx_db_file)
         print('out_dir       ', self.out_dir)
-        print('interval      ', self.args.interval)
         print('current       ', self.args.current)
         print('history       ', self.args.history)
+        print('interval      ', self.args.interval)
         print()
 
         is_first_iter: bool = True
@@ -84,9 +96,11 @@ class App:
 
                     # write data if it has changed since the last check
                     if self.last_track != track:
+                        self.last_track = track
                         print(f"{datetime.datetime.now()} | {track[0]} - {track[1]}")
                         self.update_files(track=track)
-                        self.last_track = track
+                        if self.args.api_url:
+                            self.send_current_to_api(track=track)
 
             except KeyboardInterrupt:
                 sys.exit(0)
@@ -147,7 +161,28 @@ class App:
 
         if self.args.history:
             with open(self.history_out_file, mode='a') as f:
-                f.write(f"{datetime.datetime.now()},{track[0]} - {track[1]}\n")
+                f.write(f"{str(datetime.datetime.now(tz=datetime.timezone.utc)).split('.')[0]}  {track[0]} - {track[1]}\n")
+
+
+    def send_current_to_api(self, track: tuple[str, str]):
+        try:
+            r: requests.Response = requests.post(
+                url=self.args.api_url,
+                data={
+                    'action': 'submit_current_track',
+                    'artist': track[0],
+                    'title': track[1],
+                    'api_key': self.args.api_key or '',
+                },
+                timeout=10,
+                headers={
+                    'user-agent': 'mixxxnp2txt',
+                },
+            )
+            r.raise_for_status()
+        except:
+            raise
+
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
