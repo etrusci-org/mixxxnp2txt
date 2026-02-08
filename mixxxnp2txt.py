@@ -110,8 +110,6 @@ class App:
                 continue
 
 
-
-
     def query_current_track(self) -> tuple[str, str]:
         con: sqlite3.Connection = sqlite3.connect(database=self.mixxx_db_file)
         cur: sqlite3.Cursor = con.cursor()
@@ -144,7 +142,7 @@ class App:
             if not track:
                 raise Exception("no track data")
 
-            return track
+            return (track[0] or '', track[1] or '')
 
         finally:
             cur.close()
@@ -166,23 +164,20 @@ class App:
 
 
     def send_current_to_api(self, track: tuple[str, str]):
-        try:
-            r: requests.Response = requests.post(
-                url=self.args.api_url,
-                data={
-                    'action': 'submit_current_track',
-                    'artist': track[0],
-                    'title': track[1],
-                    'api_key': self.args.api_key or '',
-                },
-                timeout=10,
-                headers={
-                    'user-agent': 'mixxxnp2txt',
-                },
-            )
-            r.raise_for_status()
-        except:
-            raise
+        r: requests.Response = requests.post(
+            url=self.args.api_url,
+            data={
+                'action': 'submit_current_track',
+                'artist': track[0],
+                'title': track[1],
+                'api_key': self.args.api_key or '',
+            },
+            timeout=10,
+            headers={
+                'user-agent': 'mixxxnp2txt',
+            },
+        )
+        r.raise_for_status()
 
 
 
